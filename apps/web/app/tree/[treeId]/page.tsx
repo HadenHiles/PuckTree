@@ -7,7 +7,7 @@
  * Displays nodes for players, draft picks, and transactions.
  */
 
-import { useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ReactFlow,
@@ -21,13 +21,16 @@ import {
   type OnEdgesChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { ArrowLeft, Download, Eye, Info } from 'lucide-react';
+import { ArrowLeft, Download, Eye, Info, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { nodeTypes } from '@/components/tree/flow-nodes';
 import { ConnectionTray } from '@/components/tree/connection-tray';
 import { NodeInspector } from '@/components/tree/node-inspector';
+import { CreateAssetDialog } from '@/components/tree/create-asset-dialog';
+import { CreateTransactionDialog } from '@/components/tree/create-transaction-dialog';
 import { useTreeStore } from '@/lib/stores/tree-store';
 import { fetchConnectionsForAsset } from '@/lib/stores/fetchConnections';
+import type { NormalizedAssetCandidate, TransactionKind } from '@pucktree/domain';
 
 export default function TreeEditorPage() {
   const router = useRouter();
@@ -49,10 +52,14 @@ export default function TreeEditorPage() {
     dismissConnection,
     setSelectedAssetForConnections,
     setSelectedNode,
+    createManualAsset,
+    createManualTransaction,
   } = useTreeStore();
 
   const [nodes, setNodes, onNodesChange] = useNodesState(storeNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(storeEdges);
+  const [isCreateAssetOpen, setIsCreateAssetOpen] = useState(false);
+  const [isCreateTransactionOpen, setIsCreateTransactionOpen] = useState(false);
 
   // Sync store state with local state
   useEffect(() => {
@@ -174,6 +181,35 @@ export default function TreeEditorPage() {
     router.push('/');
   };
 
+  const handleCreateAsset = (asset: Omit<NormalizedAssetCandidate, "id" | "displayLabel" | "confidence">) => {
+    createManualAsset({
+      kind: asset.kind,
+      data: {
+        ...asset,
+        id: "", // Placeholder, will be set by store
+        displayLabel: "", // Placeholder, will be set by store
+        confidence: "manual",
+      },
+      receivingTeamId: null,
+    });
+  };
+
+  const handleCreateTransaction = (transaction: { kind: TransactionKind; transactionDate: string }) => {
+    createManualTransaction({
+      transactionDate: transaction.transactionDate,
+      kind: transaction.kind,
+      teams: [],
+      sourceRefs: [{
+        id: `manual-${Date.now()}`,
+        provider: 'manual',
+        sourceName: 'Manual Entry',
+        sourceUrl: null,
+        retrievedAt: new Date().toISOString(),
+      }],
+      confidence: 'manual',
+    });
+  };
+
   return (
     <div className="h-screen flex flex-col bg-slate-50">
       {/* Top command bar */}
@@ -190,6 +226,16 @@ export default function TreeEditorPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setIsCreateAssetOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Asset
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={() => setIsCreateTransactionOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Transaction
+          </Button>
+
           <Button variant="outline" size="sm" onClick={toggleSourceDrawer}>
             <Info className="h-4 w-4 mr-2" />
             Sources
@@ -314,6 +360,20 @@ export default function TreeEditorPage() {
         onAdd={addBranch}
         onDismiss={dismissConnection}
         onClose={() => setSelectedAssetForConnections(null)}
+      />
+
+      {/* Create asset dialog */}
+      <CreateAssetDialog
+        open={isCreateAssetOpen}
+        onOpenChange={setIsCreateAssetOpen}
+        onCreateAsset={handleCreateAsset}
+      />
+
+      {/* Create transaction dialog */}
+      <CreateTransactionDialog
+        open={isCreateTransactionOpen}
+        onOpenChange={setIsCreateTransactionOpen}
+        onCreateTransaction={handleCreateTransaction}
       />
     </div>
   );

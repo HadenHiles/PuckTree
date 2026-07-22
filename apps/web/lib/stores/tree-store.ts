@@ -110,6 +110,8 @@ interface TreeState {
   updateEdges: (edges: Edge[]) => void;
   updateAsset: (assetId: string, updates: Partial<AssetNode>) => void;
   updateTransaction: (transactionId: string, updates: Partial<TradeEvent>) => void;
+  createManualAsset: (asset: Omit<AssetNode, 'id'>) => string;
+  createManualTransaction: (transaction: Omit<TradeEvent, 'id' | 'assetIds'>) => string;
 }
 
 export const useTreeStore = create<TreeState>()(
@@ -411,6 +413,84 @@ export const useTreeStore = create<TreeState>()(
           }
         }
       });
+    },
+
+    createManualAsset(asset) {
+      let assetId = '';
+      set((state) => {
+        if (!state.document) return;
+
+        assetId = `asset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        const displayLabel = asset.kind === "player"
+          ? asset.data.playerRef?.playerName || "Unknown"
+          : asset.data.draftYear
+          ? `${asset.data.draftYear} Round ${asset.data.round || "?"}`
+          : "Draft Pick";
+
+        // Create complete NormalizedAssetCandidate with correct values
+        const completeData: NormalizedAssetCandidate = {
+          ...asset.data,
+          id: assetId,
+          displayLabel,
+          confidence: "manual",
+        };
+
+        // Add asset to document
+        state.document.assetsById[assetId] = {
+          ...asset,
+          id: assetId,
+          data: completeData,
+        };
+        state.document.updatedAt = new Date().toISOString();
+
+        // Create React Flow node
+        const newNode: Node = {
+          id: assetId,
+          type: 'asset',
+          position: { x: 100, y: 100 }, // User will position it
+          data: {
+            asset: completeData,
+            kind: asset.kind,
+          },
+        };
+
+        state.nodes.push(newNode);
+      });
+      return assetId;
+    },
+
+    createManualTransaction(transaction) {
+      let transactionId = '';
+      set((state) => {
+        if (!state.document) return;
+
+        transactionId = `txn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        // Add transaction to document
+        state.document.tradesById[transactionId] = {
+          ...transaction,
+          id: transactionId,
+          assetIds: [], // Will be connected later
+        };
+        state.document.updatedAt = new Date().toISOString();
+
+        // Create React Flow node
+        const newNode: Node = {
+          id: transactionId,
+          type: 'transaction',
+          position: { x: 400, y: 300 }, // User will position it
+          data: {
+            date: transaction.transactionDate,
+            kind: transaction.kind,
+            teams: transaction.teams,
+            confidence: transaction.confidence || 'manual',
+          },
+        };
+
+        state.nodes.push(newNode);
+      });
+      return transactionId;
     },
   }))
 );
