@@ -24,7 +24,9 @@ import '@xyflow/react/dist/style.css';
 import { ArrowLeft, Download, Eye, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { nodeTypes } from '@/components/tree/flow-nodes';
+import { ConnectionTray } from '@/components/tree/connection-tray';
 import { useTreeStore } from '@/lib/stores/tree-store';
+import { fetchConnectionsForAsset } from '@/lib/stores/fetchConnections';
 
 export default function TreeEditorPage() {
   const router = useRouter();
@@ -32,10 +34,19 @@ export default function TreeEditorPage() {
   const {
     nodes: storeNodes,
     edges: storeEdges,
+    document,
+    connectionsByAssetId,
+    isLoadingConnections,
+    selectedAssetForConnections,
     updateNodes,
     updateEdges,
     toggleSourceDrawer,
     isSourceDrawerOpen,
+    setLoadingConnections,
+    setConnectionsForAsset,
+    addBranch,
+    dismissConnection,
+    setSelectedAssetForConnections,
   } = useTreeStore();
 
   const [nodes, setNodes, onNodesChange] = useNodesState(storeNodes);
@@ -69,7 +80,56 @@ export default function TreeEditorPage() {
         setEdges((eds) => {
           updateEdges(eds);
           return eds;
-        });
+    
+
+  // Handle connection indicator click
+  const handleConnectionClick = useCallback(async (assetId: string) => {
+    const asset = document?.assetsById[assetId];
+    if (!asset || asset.kind !== 'player' || !asset.data.playerRef) return;
+
+    setSelectedAssetForConnections(assetId);
+    
+    // Fetch connections if not already loaded
+    if (!connectionsByAssetId[assetId]) {
+      setLoadingConnections(true);
+      const existingTradeIds = document ? Object.keys(document.tradesById) : [];
+      const connections = await fetchConnectionsForAsset(
+        assetId,
+        asset.data.playerRef.playerName,
+        existingTradeIds
+      );
+      setConnectionsForAsset(assetId, connections);
+      setLoadingConnections(false);
+    }
+  }, [
+    document,
+    connectionsByAssetId,
+    setSelectedAssetForConnections,
+    setLoadingConnections,
+    setConnectionsForAsset,
+  ]);
+
+  // Update nodes with connection callbacks and counts
+  useEffect(() => {
+    const nodesWithConnections = storeNodes.map((node) => {
+      if (node.type === 'asset') {
+        const connections = connectionsByAssetId[node.id] || [];
+        const visibleConnections = connections.filter((c) => !c.dismissed);
+        
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            connectionCount: visibleConnections.length,
+            onConnectionClick: () => handleConnectionClick(node.id),
+          },
+        };
+      }
+      return node;
+    });
+    
+    setNodes(nodesWithConnections);
+  }, [storeNodes, connectionsByAssetId, handleConnectionClick, setNodes]);    });
       }, 100);
     },
     [onEdgesChange, setEdges, updateEdges]
@@ -161,6 +221,16 @@ export default function TreeEditorPage() {
             <Panel position="top-left" className="bg-white/90 backdrop-blur rounded-lg shadow-md p-3 text-sm">
               <div className="text-slate-600">
                 <strong>{nodes.length}</strong> nodes · <strong>{edges.length}</strong> connections
+
+      {/* Connection tray */}
+      <ConnectionTray
+        assetId={selectedAssetForConnections}
+        connections={selectedAssetForConnections ? connectionsByAssetId[selectedAssetForConnections] || [] : []}
+        isLoading={isLoadingConnections}
+        onAdd={addBranch}
+        onDismiss={dismissConnection}
+        onClose={() => setSelectedAssetForConnections(null)}
+      />
               </div>
             </Panel>
           </ReactFlow>

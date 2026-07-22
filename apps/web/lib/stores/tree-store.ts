@@ -55,6 +55,28 @@ export interface SourceRef {
 }
 
 /**
+ * Connection suggestion for branch discovery
+ */
+export interface ConnectionSuggestion {
+  id: string;
+  assetId: string; // The asset this connection relates to
+  transactionId: string; // ID of the suggested transaction
+  transactionDate: string;
+  kind: string;
+  teams: NormalizedTeamRef[];
+  assets: NormalizedAssetCandidate[];
+  confidence: string;
+  source: {
+    id: string;
+    provider: string;
+    sourceName: string;
+    sourceUrl: string | null;
+    retrievedAt: string;
+  };
+  dismissed: boolean;
+}
+
+/**
  * Store state and actions
  */
 
@@ -66,13 +88,23 @@ interface TreeState {
   nodes: Node[];
   edges: Edge[];
   
+  // Connection suggestions
+  connectionsByAssetId: Record<string, ConnectionSuggestion[]>;
+  isLoadingConnections: boolean;
+  
   // UI state
   selectedNodeId: string | null;
+  selectedAssetForConnections: string | null;
   isSourceDrawerOpen: boolean;
   
   // Actions
   loadTree: (trade: NormalizedTransactionCandidate) => void;
+  setConnectionsForAsset: (assetId: string, connections: ConnectionSuggestion[]) => void;
+  setLoadingConnections: (loading: boolean) => void;
+  addBranch: (connectionId: string) => void;
+  dismissConnection: (connectionId: string) => void;
   setSelectedNode: (nodeId: string | null) => void;
+  setSelectedAssetForConnections: (assetId: string | null) => void;
   toggleSourceDrawer: () => void;
   updateNodes: (nodes: Node[]) => void;
   updateEdges: (edges: Edge[]) => void;
@@ -83,10 +115,13 @@ export const useTreeStore = create<TreeState>()(
     document: null,
     nodes: [],
     edges: [],
+    connectionsByAssetId: {},
+    isLoadingConnections: false,
     selectedNodeId: null,
+    selectedAssetForConnections: null,
     isSourceDrawerOpen: false,
 
-    loadTree: (trade) => {
+    loadTree(trade) {
       set((state) => {
         // Create tree document from trade
         const treeId = `tree-${Date.now()}`;
@@ -141,25 +176,118 @@ export const useTreeStore = create<TreeState>()(
       });
     },
 
-    setSelectedNode: (nodeId) => {
+    setSelectedNode(nodeId) {
       set((state) => {
         state.selectedNodeId = nodeId;
       });
     },
 
-    toggleSourceDrawer: () => {
+    setSelectedAssetForConnections(assetId) {
+      set((state) => {
+        state.selectedAssetForConnections = assetId;
+      });
+    },
+
+    setLoadingConnections(loading) {
+      set((state) => {
+        state.isLoadingConnections = loading;
+      });
+    },
+
+    setConnectionsForAsset(assetId, connections) {
+      set((state) => {
+        state.connectionsByAssetId[assetId] = connections;
+      });
+    },
+
+    addBranch(connectionId) {
+      set((state) => {
+        // Find the connection
+        const connection = Object.values(state.connectionsByAssetId)
+          .flat()
+          .find((c) => c.id === connectionId);
+
+        if (!connection || !state.document) return;
+
+        // Add the transaction to the document
+        const tradeId = connection.transactionId;
+        const newTrade: TradeEvent = {
+          id: tradeId,
+          transactionDate: connection.transactionDate,
+          kind: connection.kind,
+          teams: connection.teams,
+          assetIds: connection.assets.map((a) => a.id || `asset-${Math.random()}`),
+          sourceRefs: [{
+            id: connection.source.id,
+            provider: connection.source.provider,
+            sourceName: connection.source.sourceName,
+            sourceUrl: connection.source.sourceUrl,
+            retrievedAt: connection.source.retrievedAt,
+          }],
+          confidence: connection.confidence,
+        };
+
+        state.document.tradesById[tradeId] = newTrade;
+
+        // Add new assets
+        connection.assets.forEach((asset, idx) => {
+          const assetId = asset.id || `asset-${idx}`;
+          if (!state.document!.assetsById[assetId]) {
+            state.document!.assetsById[assetId] = {
+              id: assetId,
+              kind: asset.kind || 'player',
+              data: asset,
+              receivingTeamId: null,
+            };
+          }
+        });
+
+        state.document.updatedAt = new Date().toISOString();
+
+        // Regenerate React Flow nodes and edges
+        const { nodes, edges } = convertToFlow(state.document);
+        state.nodes = nodes;
+        state.edges = edges;
+
+        // Remove this connection from available connections
+        const connectionsForAsset = state.connectionsByAssetId[connection.assetId];
+        if (connectionsForAsset) {
+          state.connectionsByAssetId[connection.assetId] = connectionsForAsset.filter(
+            (c) => c.id !== connectionId
+          );
+        }
+      });
+    },
+
+    dismissConnection(connectionId) {
+      set((state) => {
+        // Find and mark the connection as dismissed
+        Object.keys(state.connectionsByAssetId).forEach((assetId) => {
+          const connections = state.connectionsByAssetId[assetId];
+          if (!connections) return;
+          const connection = connections.find(
+            (c) => c.id === connectionId
+          );
+          if (connection) {
+            connection.dismissed = true;
+          }
+        });
+      });
+    },
+
+    toggleSourceDrawer() {
       set((state) => {
         state.isSourceDrawerOpen = !state.isSourceDrawerOpen;
       });
     },
 
-    updateNodes: (nodes) => {
+    updateNodes(nodes) {
       set((state) => {
         state.nodes = nodes;
       });
     },
 
-    updateEdges: (edges) => {
+    updateEdges(edges) {
       set((state) => {
         state.edges = edges;
       });

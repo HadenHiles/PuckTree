@@ -6,7 +6,7 @@
 
 import { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { Calendar, User } from 'lucide-react';
+import { Calendar, User, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { NormalizedAssetCandidate, NormalizedTeamRef } from '@pucktree/domain';
 
@@ -17,6 +17,8 @@ import type { NormalizedAssetCandidate, NormalizedTeamRef } from '@pucktree/doma
 export interface AssetNodeData {
   asset: NormalizedAssetCandidate;
   kind: 'player' | 'draft-pick' | 'custom';
+  connectionCount?: number;
+  onConnectionClick?: () => void;
 }
 
 interface AssetNodeProps {
@@ -25,17 +27,19 @@ interface AssetNodeProps {
 }
 
 export const AssetNode = memo(({ data, selected }: AssetNodeProps) => {
-  const { asset, kind } = data;
+  const { asset, kind, connectionCount = 0, onConnectionClick } = data;
 
   if (!asset || !kind) {
     return null;
   }
 
+  const hasConnections = connectionCount > 0;
+
   if (kind === 'player' && asset.playerRef) {
     return (
       <div
         className={cn(
-          'bg-white rounded-lg shadow-md border-2 transition-all',
+          'bg-white rounded-lg shadow-md border-2 transition-all relative',
           selected ? 'border-blue-500 shadow-lg' : 'border-slate-200',
           'hover:border-slate-300 hover:shadow-lg'
         )}
@@ -43,6 +47,20 @@ export const AssetNode = memo(({ data, selected }: AssetNodeProps) => {
       >
         <Handle type="target" position={Position.Left} className="!bg-slate-400" />
         <Handle type="source" position={Position.Right} className="!bg-slate-400" />
+
+        {/* Connection indicator */}
+        {hasConnections && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onConnectionClick?.();
+            }}
+            className="absolute -top-2 -right-2 z-10 bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs font-bold shadow-lg hover:bg-blue-700 transition-colors"
+            title={`${connectionCount} connection${connectionCount !== 1 ? 's' : ''} available`}
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        )}
 
         {/* Player headshot */}
         <div className="relative h-32 bg-gradient-to-b from-slate-100 to-slate-50 rounded-t-lg overflow-hidden">
