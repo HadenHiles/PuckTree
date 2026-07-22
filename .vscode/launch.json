@@ -1,0 +1,71 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Next.js: debug server-side",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm dev",
+      "cwd": "${workspaceFolder}",
+      "serverReadyAction": {
+        "pattern": "- Local:.+(https?://.+)",
+        "uriFormat": "%s",
+        "action": "debugWithChrome"
+      }
+    },
+    {
+      "name": "Next.js: debug client-side",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/apps/web"
+    },
+    {
+      "name": "Python: FastAPI (transaction-provider)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "app.main:app",
+        "--reload",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000"
+      ],
+      "cwd": "${workspaceFolder}/services/transaction-provider",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/services/transaction-provider"
+      }
+    },
+    {
+      "name": "Next.js: debug full stack",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm dev",
+      "cwd": "${workspaceFolder}",
+      "serverReadyAction": {
+        "pattern": "- Local:.+(https?://.+)",
+        "uriFormat": "%s",
+        "action": "debugWithChrome"
+      },
+      "console": "integratedTerminal"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack: Next.js + Python API",
+      "configurations": [
+        "Next.js: debug server-side",
+        "Python: FastAPI (transaction-provider)"
+      ],
+      "presentation": {
+        "hidden": false,
+        "group": "fullstack",
+        "order": 1
+      },
+      "stopAll": true
+    }
+  ]
+}
