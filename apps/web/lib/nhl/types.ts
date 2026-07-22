@@ -16,6 +16,7 @@ export interface NHLPlayerSearchResult {
   lastSeasonId?: number;
   headshotUrl?: string;
   sweaterNumber?: number;
+  active?: boolean;
 }
 
 export interface NHLPlayerProfile {
@@ -95,6 +96,8 @@ export interface PlayerSearchCandidate {
   headshotUrl: string | null;
   sweaterNumber: number | null;
   careerYears: string | null;
+  isActive: boolean;
+  gamesPlayed: number | null;
 }
 
 export interface PlayerIdentity {

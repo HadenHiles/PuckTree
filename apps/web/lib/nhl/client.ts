@@ -19,6 +19,11 @@ const NHL_SEARCH_BASE = 'https://search.d3.nhle.com/api/v1/search/player';
 
 /**
  * Search for NHL players by name
+ * 
+ * Results are filtered and ranked by:
+ * - Name match quality (exact > starts with > contains)
+ * - Active status (active players first)
+ * - Recent play (players with recent seasons)
  */
 export async function searchPlayers(
   query: string,
@@ -31,9 +36,10 @@ export async function searchPlayers(
   }
 
   try {
+    // Request more results than needed to allow for filtering
     const params = new URLSearchParams({
       culture: 'en-us',
-      limit: String(limit),
+      limit: String(Math.min(limit * 3, 50)),
       q: query.trim(),
     });
 
@@ -51,7 +57,14 @@ export async function searchPlayers(
 
     const results: NHLPlayerSearchResult[] = await response.json();
 
-    return results.map(normalizeSearchResult);
+    // Normalize and filter results
+    const candidates = results
+      .map(normalizeSearchResult)
+      .filter(filterRelevantPlayers(query))
+      .sort(rankSearchResults(query))
+      .slice(0, limit);
+
+    return candidates;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       return [];
@@ -150,6 +163,8 @@ function normalizeSearchResult(
     headshotUrl: result.headshotUrl ?? buildHeadshotUrl(result.playerId),
     sweaterNumber: result.sweaterNumber ?? null,
     careerYears: result.lastSeasonId ? formatSeasonYear(result.lastSeasonId) : null,
+    isActive: result.active ?? false,
+    gamesPlayed: null, // Not available from search API
   };
 }
 
@@ -248,4 +263,86 @@ function formatSeasonYear(seasonId: number): string {
     return `${startYear}-${endYear}`;
   }
   return str;
+}
+
+/**
+ * Filter function to remove non-relevant players from search results
+ * Prioritizes active players and those with recent NHL experience
+ */
+function filterRelevantPlayers(query: string): (player: PlayerSearchCandidate) => boolean {
+  const normalizedQuery = query.toLowerCase().trim();
+  
+  return (player: PlayerSearchCandidate) => {
+    const normalizedName = player.fullName.toLowerCase();
+    
+    // Always include if name contains the query
+    if (!normalizedName.includes(normalizedQuery)) {
+      return false;
+    }
+    
+    // Include all active players
+    if (player.isActive) {
+      return true;
+    }
+    
+    // Include inactive players with recent career years (within last 5 years)
+    if (player.careerYears) {
+      const yearMatch = player.careerYears.match(/(\d{4})/);
+      if (yearMatch) {
+        const lastYear = parseInt(yearMatch[1]);
+        const currentYear = new Date().getFullYear();
+        if (currentYear - lastYear <= 5) {
+          return true;
+        }
+      }
+    }
+    
+    // Exclude very old/obscure players
+    return false;
+  };
+}
+
+/**
+ * Ranking function to sort search results by relevance
+ * Priority: exact match > starts with > contains, then active > inactive, then recent play
+ */
+function rankSearchResults(query: string): (a: PlayerSearchCandidate, b: PlayerSearchCandidate) => number {
+  const normalizedQuery = query.toLowerCase().trim();
+  
+  return (a: PlayerSearchCandidate, b: PlayerSearchCandidate) => {
+    const nameA = a.fullName.toLowerCase();
+    const nameB = b.fullName.toLowerCase();
+    
+    // 1. Exact match wins
+    const exactA = nameA === normalizedQuery ? 1 : 0;
+    const exactB = nameB === normalizedQuery ? 1 : 0;
+    if (exactA !== exactB) return exactB - exactA;
+    
+    // 2. Starts with query wins
+    const startsA = nameA.startsWith(normalizedQuery) ? 1 : 0;
+    const startsB = nameB.startsWith(normalizedQuery) ? 1 : 0;
+    if (startsA !== startsB) return startsB - startsA;
+    
+    // 3. Active players win
+    const activeA = a.isActive ? 1 : 0;
+    const activeB = b.isActive ? 1 : 0;
+    if (activeA !== activeB) return activeB - activeA;
+    
+    // 4. More recent career years win
+    const yearA = extractLastYear(a.careerYears);
+    const yearB = extractLastYear(b.careerYears);
+    if (yearA !== yearB) return yearB - yearA;
+    
+    // 5. Fall back to alphabetical
+    return nameA.localeCompare(nameB);
+  };
+}
+
+/**
+ * Extract the last year from career years string
+ */
+function extractLastYear(careerYears: string | null): number {
+  if (!careerYears) return 0;
+  const match = careerYears.match(/(\d{4})/);
+  return match ? parseInt(match[1]) : 0;
 }
