@@ -49,7 +49,7 @@ export default function HomePage() {
 
   // Show landing page with player search
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100" suppressHydrationWarning>
       <div className="container mx-auto px-4 py-16">
         {/* Header */}
         <div className="text-center mb-12">
