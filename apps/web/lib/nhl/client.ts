@@ -287,7 +287,7 @@ function filterRelevantPlayers(query: string): (player: PlayerSearchCandidate) =
     
     // Include inactive players with recent career years (within last 5 years)
     if (player.careerYears) {
-      const yearMatch = player.careerYears.match(/(\ d{4})/);
+      const yearMatch = player.careerYears.match(/(\d{4})/);
       if (yearMatch && yearMatch[1]) {
         const lastYear = parseInt(yearMatch[1], 10);
         const currentYear = new Date().getFullYear();
