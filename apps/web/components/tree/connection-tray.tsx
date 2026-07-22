@@ -6,7 +6,8 @@
  * Shows suggested next trades for a selected asset.
  */
 
-import { X, Plus } from 'lucide-react';
+import { useState } from 'react';
+import { X, Plus, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ConnectionSuggestion } from '@/lib/stores/tree-store';
 
@@ -27,6 +28,8 @@ export function ConnectionTray({
   onDismiss,
   onClose,
 }: ConnectionTrayProps) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   if (!assetId) return null;
 
   const visibleConnections = connections.filter((c) => !c.dismissed);
@@ -61,72 +64,111 @@ export function ConnectionTray({
           </div>
         ) : (
           <div className="space-y-3">
-            {visibleConnections.map((connection) => (
-              <div
-                key={connection.id}
-                className="border rounded-lg p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-sm font-medium text-slate-900">
-                        {new Date(connection.transactionDate).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
-                      </span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-700 capitalize">
-                        {connection.kind}
-                      </span>
-                      {connection.confidence !== 'verified' && (
-                        <span className="text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 capitalize">
-                          {connection.confidence}
+            {visibleConnections.map((connection) => {
+              const isExpanded = expandedId === connection.id;
+              
+              return (
+                <div
+                  key={connection.id}
+                  className="border rounded-lg p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-medium text-slate-900">
+                          {new Date(connection.transactionDate).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
                         </span>
+                        <span className="text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-700 capitalize">
+                          {connection.kind}
+                        </span>
+                        {connection.confidence !== 'verified' && (
+                          <span className="text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 capitalize">
+                            {connection.confidence}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Teams */}
+                      <div className="text-sm text-slate-600 mb-2">
+                        {connection.teams.slice(0, 2).map((team, idx) => (
+                          <span key={team.teamId || idx}>
+                            {team.teamName || team.abbreviation}
+                            {idx < Math.min(connection.teams.length, 2) - 1 && ' · '}
+                          </span>
+                        ))}
+                        {connection.teams.length > 2 && (
+                          <span className="text-slate-400"> +{connection.teams.length - 2} more</span>
+                        )}
+                      </div>
+
+                      {/* Asset count */}
+                      <div className="text-xs text-slate-500">
+                        {connection.assets.length} asset{connection.assets.length !== 1 ? 's' : ''}
+                      </div>
+
+                      {/* Expanded details */}
+                      {isExpanded && (
+                        <div className="mt-4 pt-4 border-t border-slate-200">
+                          <h4 className="text-xs font-semibold text-slate-700 mb-2">Assets in this trade:</h4>
+                          <ul className="space-y-2">
+                            {connection.assets.map((asset, idx) => (
+                              <li key={idx} className="text-sm text-slate-600">
+                                {asset.kind === 'player' && asset.playerRef ? (
+                                  <span>🏒 {asset.playerRef.playerName}</span>
+                                ) : asset.kind === 'draft-pick' ? (
+                                  <span>📋 {asset.draftYear} Round {asset.round} {asset.overall && `(${asset.overall}th)`}</span>
+                                ) : (
+                                  <span>• {asset.displayLabel || 'Unknown asset'}</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                          
+                          {connection.source && (
+                            <div className="mt-3 text-xs text-slate-500">
+                              <span className="font-medium">Source:</span> {connection.source.sourceName}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
 
-                    {/* Teams */}
-                    <div className="text-sm text-slate-600 mb-2">
-                      {connection.teams.slice(0, 2).map((team, idx) => (
-                        <span key={team.teamId || idx}>
-                          {team.teamName || team.abbreviation}
-                          {idx < Math.min(connection.teams.length, 2) - 1 && ' · '}
-                        </span>
-                      ))}
-                      {connection.teams.length > 2 && (
-                        <span className="text-slate-400"> +{connection.teams.length - 2} more</span>
-                      )}
+                    {/* Actions */}
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setExpandedId(isExpanded ? null : connection.id)}
+                        className="text-xs"
+                      >
+                        <Edit className="h-3 w-3 mr-1" />
+                        {isExpanded ? 'Collapse' : 'Review'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onDismiss(connection.id)}
+                        className="text-xs"
+                      >
+                        Dismiss
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => onAdd(connection.id)}
+                        className="text-xs"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add
+                      </Button>
                     </div>
-
-                    {/* Asset count */}
-                    <div className="text-xs text-slate-500">
-                      {connection.assets.length} asset{connection.assets.length !== 1 ? 's' : ''}
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onDismiss(connection.id)}
-                      className="text-xs"
-                    >
-                      Dismiss
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => onAdd(connection.id)}
-                      className="text-xs"
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Add Branch
-                    </Button>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
