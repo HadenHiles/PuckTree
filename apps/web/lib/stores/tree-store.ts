@@ -1,6 +1,6 @@
 /**
  * Tree editor store
- * 
+ *
  * Manages the PuckTree document state and React Flow derived state.
  * Domain model is kept separate from React Flow nodes/edges.
  */
@@ -54,6 +54,12 @@ export interface SourceRef {
   retrievedAt: string;
 }
 
+const MAX_HISTORY_ENTRIES = 50;
+
+function cloneDocument(document: TreeDocument): TreeDocument {
+  return JSON.parse(JSON.stringify(document)) as TreeDocument;
+}
+
 /**
  * Connection suggestion for branch discovery
  */
@@ -83,22 +89,27 @@ export interface ConnectionSuggestion {
 interface TreeState {
   // Document state
   document: TreeDocument | null;
-  
+
   // React Flow state (derived)
   nodes: Node[];
   edges: Edge[];
-  
+
   // Connection suggestions
   connectionsByAssetId: Record<string, ConnectionSuggestion[]>;
   isLoadingConnections: boolean;
-  
+
+  // History for undo/redo
+  history: TreeDocument[];
+  historyIndex: number;
+
   // UI state
   selectedNodeId: string | null;
   selectedAssetForConnections: string | null;
   isSourceDrawerOpen: boolean;
-  
+
   // Actions
   loadTree: (trade: NormalizedTransactionCandidate) => void;
+  loadDocument: (document: TreeDocument) => void;
   setConnectionsForAsset: (assetId: string, connections: ConnectionSuggestion[]) => void;
   setLoadingConnections: (loading: boolean) => void;
   addBranch: (connectionId: string) => void;
@@ -112,15 +123,39 @@ interface TreeState {
   updateTransaction: (transactionId: string, updates: Partial<TradeEvent>) => void;
   createManualAsset: (asset: Omit<AssetNode, 'id'>) => string;
   createManualTransaction: (transaction: Omit<TradeEvent, 'id' | 'assetIds'>) => string;
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
 }
 
 export const useTreeStore = create<TreeState>()(
-  immer((set) => ({
+  immer((set, get) => {
+    const recordHistory = () => {
+      const document = get().document;
+      if (!document) return;
+
+      set((state) => {
+        const nextHistory = state.history.slice(0, state.historyIndex + 1);
+        nextHistory.push(cloneDocument(document));
+
+        if (nextHistory.length > MAX_HISTORY_ENTRIES) {
+          nextHistory.shift();
+        }
+
+        state.history = nextHistory;
+        state.historyIndex = nextHistory.length - 1;
+      });
+    };
+
+    return {
     document: null,
     nodes: [],
     edges: [],
     connectionsByAssetId: {},
     isLoadingConnections: false,
+    history: [],
+    historyIndex: -1,
     selectedNodeId: null,
     selectedAssetForConnections: null,
     isSourceDrawerOpen: false,
@@ -177,6 +212,28 @@ export const useTreeStore = create<TreeState>()(
         const { nodes, edges } = convertToFlow(state.document);
         state.nodes = nodes;
         state.edges = edges;
+
+        // Initialize history with the first state
+        // (state.document here is a fresh assignment, not a mutated draft, so we don't use current())
+        state.history = [cloneDocument(state.document)];
+        state.historyIndex = 0;
+      });
+    },
+
+    loadDocument(document) {
+      set((state) => {
+        const restoredDocument = cloneDocument(document);
+        const { nodes, edges } = convertToFlow(restoredDocument);
+
+        state.document = restoredDocument;
+        state.nodes = nodes;
+        state.edges = edges;
+        state.connectionsByAssetId = {};
+        state.isLoadingConnections = false;
+        state.selectedNodeId = null;
+        state.selectedAssetForConnections = null;
+        state.history = [cloneDocument(restoredDocument)];
+        state.historyIndex = 0;
       });
     },
 
@@ -205,6 +262,7 @@ export const useTreeStore = create<TreeState>()(
     },
 
     addBranch(connectionId) {
+      let didAddBranch = false;
       set((state) => {
         // Find the connection
         const connection = Object.values(state.connectionsByAssetId)
@@ -254,6 +312,7 @@ export const useTreeStore = create<TreeState>()(
         });
 
         state.document.updatedAt = new Date().toISOString();
+        didAddBranch = true;
 
         // Partial branch layout: only position new nodes
         // Find the parent asset node to position relative to it
@@ -286,7 +345,7 @@ export const useTreeStore = create<TreeState>()(
         // Add new asset nodes to the right of the transaction
         connection.assets.forEach((asset, idx) => {
           const assetId = asset.id || `asset-${idx}`;
-          
+
           // Only add node if it doesn't already exist
           const existingNode = state.nodes.find((n) => n.id === assetId);
           if (!existingNode) {
@@ -319,6 +378,8 @@ export const useTreeStore = create<TreeState>()(
           );
         }
       });
+
+      if (didAddBranch) recordHistory();
     },
 
     dismissConnection(connectionId) {
@@ -356,6 +417,7 @@ export const useTreeStore = create<TreeState>()(
     },
 
     updateAsset(assetId, updates) {
+      let didUpdateAsset = false;
       set((state) => {
         if (!state.document) return;
 
@@ -365,6 +427,7 @@ export const useTreeStore = create<TreeState>()(
         // Apply updates to the asset
         Object.assign(asset, updates);
         state.document.updatedAt = new Date().toISOString();
+        didUpdateAsset = true;
 
         // Update the corresponding React Flow node
         const nodeIndex = state.nodes.findIndex((n) => n.id === assetId);
@@ -382,9 +445,12 @@ export const useTreeStore = create<TreeState>()(
           }
         }
       });
+
+      if (didUpdateAsset) recordHistory();
     },
 
     updateTransaction(transactionId, updates) {
+      let didUpdateTransaction = false;
       set((state) => {
         if (!state.document) return;
 
@@ -394,6 +460,7 @@ export const useTreeStore = create<TreeState>()(
         // Apply updates to the transaction
         Object.assign(transaction, updates);
         state.document.updatedAt = new Date().toISOString();
+        didUpdateTransaction = true;
 
         // Update the corresponding React Flow node
         const nodeIndex = state.nodes.findIndex((n) => n.id === transactionId);
@@ -413,6 +480,8 @@ export const useTreeStore = create<TreeState>()(
           }
         }
       });
+
+      if (didUpdateTransaction) recordHistory();
     },
 
     createManualAsset(asset) {
@@ -421,7 +490,7 @@ export const useTreeStore = create<TreeState>()(
         if (!state.document) return;
 
         assetId = `asset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
+
         const displayLabel = asset.kind === "player"
           ? asset.data.playerRef?.playerName || "Unknown"
           : asset.data.draftYear
@@ -457,6 +526,9 @@ export const useTreeStore = create<TreeState>()(
 
         state.nodes.push(newNode);
       });
+
+      if (assetId) recordHistory();
+
       return assetId;
     },
 
@@ -490,9 +562,59 @@ export const useTreeStore = create<TreeState>()(
 
         state.nodes.push(newNode);
       });
+
+      if (transactionId) recordHistory();
+
       return transactionId;
     },
-  }))
+
+    undo() {
+      const state = get();
+      if (state.historyIndex <= 0 || state.history.length === 0) return;
+
+      set((draft) => {
+        draft.historyIndex -= 1;
+        const previousDoc = draft.history[draft.historyIndex];
+        if (previousDoc) {
+          draft.document = cloneDocument(previousDoc);
+          if (draft.document) {
+            const { nodes, edges } = convertToFlow(draft.document);
+            draft.nodes = nodes;
+            draft.edges = edges;
+          }
+        }
+      });
+    },
+
+    redo() {
+      const state = get();
+      if (state.historyIndex >= state.history.length - 1) return;
+
+      set((draft) => {
+        draft.historyIndex += 1;
+        const nextDoc = draft.history[draft.historyIndex];
+        if (nextDoc) {
+          draft.document = cloneDocument(nextDoc);
+          if (draft.document) {
+            const { nodes, edges } = convertToFlow(draft.document);
+            draft.nodes = nodes;
+            draft.edges = edges;
+          }
+        }
+      });
+    },
+
+    canUndo() {
+      const state = get();
+      return state.historyIndex > 0;
+    },
+
+    canRedo() {
+      const state = get();
+      return state.historyIndex < state.history.length - 1;
+    },
+  };
+  })
 );
 
 /**

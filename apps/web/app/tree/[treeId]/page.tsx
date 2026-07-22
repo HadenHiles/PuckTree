@@ -2,13 +2,13 @@
 
 /**
  * Tree editor page
- * 
+ *
  * Interactive trade tree canvas using React Flow.
  * Displays nodes for players, draft picks, and transactions.
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef, type ChangeEvent } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import {
   ReactFlow,
   Background,
@@ -21,7 +21,7 @@ import {
   type OnEdgesChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { ArrowLeft, Download, Eye, Info, Plus } from 'lucide-react';
+import { ArrowLeft, Download, Eye, Info, Plus, Undo2, Redo2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { nodeTypes } from '@/components/tree/flow-nodes';
 import { ConnectionTray } from '@/components/tree/connection-tray';
@@ -30,10 +30,13 @@ import { CreateAssetDialog } from '@/components/tree/create-asset-dialog';
 import { CreateTransactionDialog } from '@/components/tree/create-transaction-dialog';
 import { useTreeStore } from '@/lib/stores/tree-store';
 import { fetchConnectionsForAsset } from '@/lib/stores/fetchConnections';
+import { migrateTreeDocument, readTreeDocument, writeTreeDocument } from '@/lib/tree-document-storage';
 import type { NormalizedAssetCandidate, TransactionKind } from '@pucktree/domain';
 
 export default function TreeEditorPage() {
   const router = useRouter();
+  const params = useParams<{ treeId: string }>();
+  const treeId = params.treeId;
 
   const {
     nodes: storeNodes,
@@ -54,12 +57,54 @@ export default function TreeEditorPage() {
     setSelectedNode,
     createManualAsset,
     createManualTransaction,
+    loadDocument,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useTreeStore();
 
   const [nodes, setNodes, onNodesChange] = useNodesState(storeNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(storeEdges);
   const [isCreateAssetOpen, setIsCreateAssetOpen] = useState(false);
   const [isCreateTransactionOpen, setIsCreateTransactionOpen] = useState(false);
+  const [isDocumentReady, setIsDocumentReady] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  // Restore the document for this editor route before autosave begins.
+  useEffect(() => {
+    const storedDocument = readTreeDocument(treeId);
+    if (storedDocument) loadDocument(storedDocument);
+    setIsDocumentReady(true);
+  }, [treeId, loadDocument]);
+
+  useEffect(() => {
+    if (isDocumentReady && document) writeTreeDocument(treeId, document);
+  }, [document, isDocumentReady, treeId]);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + Z for undo
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (canUndo()) {
+          undo();
+        }
+      }
+      // Cmd/Ctrl + Shift + Z for redo
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        if (canRedo()) {
+          redo();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo, canUndo, canRedo]);
 
   // Sync store state with local state
   useEffect(() => {
@@ -89,7 +134,11 @@ export default function TreeEditorPage() {
         setEdges((eds) => {
           updateEdges(eds);
           return eds;
-    
+        });
+      }, 100);
+    },
+    [onEdgesChange, setEdges, updateEdges]
+  );
 
   // Handle connection indicator click
   const handleConnectionClick = useCallback(async (assetId: string) => {
@@ -97,7 +146,7 @@ export default function TreeEditorPage() {
     if (!asset || asset.kind !== 'player' || !asset.data.playerRef) return;
 
     setSelectedAssetForConnections(assetId);
-    
+
     // Fetch connections if not already loaded
     if (!connectionsByAssetId[assetId]) {
       setLoadingConnections(true);
@@ -124,7 +173,7 @@ export default function TreeEditorPage() {
       if (node.type === 'asset') {
         const connections = connectionsByAssetId[node.id] || [];
         const visibleConnections = connections.filter((c) => !c.dismissed);
-        
+
         return {
           ...node,
           data: {
@@ -136,7 +185,7 @@ export default function TreeEditorPage() {
       }
       return node;
     });
-    
+
     setNodes(nodesWithConnections);
   }, [storeNodes, connectionsByAssetId, handleConnectionClick, setNodes]);
 
@@ -145,11 +194,11 @@ export default function TreeEditorPage() {
     if (!document) return;
 
     const existingTradeIds = Object.keys(document.tradesById);
-    
+
     // Get all player assets that don't have connections fetched yet
     const playerAssets = Object.entries(document.assetsById).filter(
-      ([assetId, asset]) => 
-        asset.kind === 'player' && 
+      ([assetId, asset]) =>
+        asset.kind === 'player' &&
         asset.data.playerRef &&
         !connectionsByAssetId[assetId]
     );
@@ -171,11 +220,7 @@ export default function TreeEditorPage() {
     if (playerAssets.length > 0) {
       fetchAllConnections();
     }
-  }, [document, connectionsByAssetId, setConnectionsForAsset]);    });
-      }, 100);
-    },
-    [onEdgesChange, setEdges, updateEdges]
-  );
+  }, [document, connectionsByAssetId, setConnectionsForAsset]);
 
   const handleBack = () => {
     router.push('/');
@@ -210,6 +255,35 @@ export default function TreeEditorPage() {
     });
   };
 
+  const handleExportJson = () => {
+    if (!document) return;
+
+    const blob = new Blob([JSON.stringify(document, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = window.document.createElement('a');
+    link.href = url;
+    link.download = `${document.title.replaceAll(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'pucktree'}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportJson = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      const importedDocument = migrateTreeDocument(JSON.parse(await file.text()));
+      if (!importedDocument) throw new Error('Invalid PuckTree document');
+
+      loadDocument(importedDocument);
+      writeTreeDocument(treeId, importedDocument);
+      setImportError(null);
+    } catch {
+      setImportError('That file is not a valid PuckTree document.');
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col bg-slate-50">
       {/* Top command bar */}
@@ -226,6 +300,44 @@ export default function TreeEditorPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={undo}
+            disabled={!canUndo()}
+            title="Undo (Cmd+Z)"
+          >
+            <Undo2 className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={redo}
+            disabled={!canRedo()}
+            title="Redo (Cmd+Shift+Z)"
+          >
+            <Redo2 className="h-4 w-4" />
+          </Button>
+
+          <div className="w-px h-6 bg-slate-200" />
+
+          <input
+            ref={importInputRef}
+            className="sr-only"
+            type="file"
+            accept="application/json,.json"
+            onChange={handleImportJson}
+          />
+          <Button variant="outline" size="sm" onClick={() => importInputRef.current?.click()}>
+            <Upload className="h-4 w-4 mr-2" />
+            Import
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportJson} disabled={!document}>
+            <Download className="h-4 w-4 mr-2" />
+            JSON
+          </Button>
+
           <Button variant="outline" size="sm" onClick={() => setIsCreateAssetOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Add Asset
@@ -255,6 +367,11 @@ export default function TreeEditorPage() {
 
       {/* Canvas */}
       <div className="flex-1 relative">
+        {importError && (
+          <div role="alert" className="absolute top-4 left-1/2 z-50 -translate-x-1/2 rounded bg-red-50 px-4 py-2 text-sm text-red-800 shadow">
+            {importError}
+          </div>
+        )}
         {nodes.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
@@ -298,21 +415,11 @@ export default function TreeEditorPage() {
               }}
               maskColor="rgba(0, 0, 0, 0.1)"
             />
-            
+
             {/* Info panel */}
             <Panel position="top-left" className="bg-white/90 backdrop-blur rounded-lg shadow-md p-3 text-sm">
               <div className="text-slate-600">
                 <strong>{nodes.length}</strong> nodes · <strong>{edges.length}</strong> connections
-
-      {/* Connection tray */}
-      <ConnectionTray
-        assetId={selectedAssetForConnections}
-        connections={selectedAssetForConnections ? connectionsByAssetId[selectedAssetForConnections] || [] : []}
-        isLoading={isLoadingConnections}
-        onAdd={addBranch}
-        onDismiss={dismissConnection}
-        onClose={() => setSelectedAssetForConnections(null)}
-      />
               </div>
             </Panel>
           </ReactFlow>
@@ -340,7 +447,7 @@ export default function TreeEditorPage() {
                   Source Attribution
                 </p>
                 <p>
-                  Transaction information may be incomplete, delayed, or incorrect. 
+                  Transaction information may be incomplete, delayed, or incorrect.
                   Verify against the linked source before publication.
                 </p>
               </div>
