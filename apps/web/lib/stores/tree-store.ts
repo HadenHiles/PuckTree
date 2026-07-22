@@ -209,8 +209,15 @@ export const useTreeStore = create<TreeState>()(
 
         if (!connection || !state.document) return;
 
-        // Add the transaction to the document
         const tradeId = connection.transactionId;
+
+        // Cycle prevention: Check if this transaction already exists in the tree
+        if (state.document.tradesById[tradeId]) {
+          console.warn(`Transaction ${tradeId} already exists in tree, skipping to prevent cycle`);
+          return;
+        }
+
+        // Add the transaction to the document
         const newTrade: TradeEvent = {
           id: tradeId,
           transactionDate: connection.transactionDate,
