@@ -1,0 +1,116 @@
+{
+    "auston_matthews": [
+        {
+            "Date": "2016-06-24",
+            "Team": "Maple Leafs",
+            "Acquired": "• Auston Matthews",
+            "Relinquished": "",
+            "Notes": "selected 1st overall in 2016 NHL draft"
+        }
+    ],
+    "connor_mcdavid": [
+        {
+            "Date": "2015-06-26",
+            "Team": "Oilers",
+            "Acquired": "• Connor McDavid",
+            "Relinquished": "",
+            "Notes": "selected 1st overall in 2015 NHL draft"
+        }
+    ],
+    "william_nylander": [
+        {
+            "Date": "2014-06-27",
+            "Team": "Maple Leafs",
+            "Acquired": "• William Nylander",
+            "Relinquished": "",
+            "Notes": "selected 8th overall in 2014 NHL draft"
+        }
+    ],
+    "patrick_kane": [
+        {
+            "Date": "2007-06-22",
+            "Team": "Blackhawks",
+            "Acquired": "• Patrick Kane",
+            "Relinquished": "",
+            "Notes": "selected 1st overall in 2007 NHL draft"
+        },
+        {
+            "Date": "2023-02-28",
+            "Team": "Rangers",
+            "Acquired": "• Patrick Kane",
+            "Relinquished": "• 2023 2nd round draft pick\n• 2025 4th round draft pick\n• conditional 2024 4th round pick",
+            "Notes": "traded from Chicago"
+        }
+    ],
+    "phil_kessel": [
+        {
+            "Date": "2009-09-18",
+            "Team": "Maple Leafs",
+            "Acquired": "• Phil Kessel",
+            "Relinquished": "• 2010 1st round draft pick (Tyler Seguin-selected 2nd overall)\n• 2010 2nd round draft pick\n• 2011 1st round draft pick (Dougie Hamilton-selected 9th overall)",
+            "Notes": "traded from Boston"
+        },
+        {
+            "Date": "2015-07-01",
+            "Team": "Penguins",
+            "Acquired": "• Phil Kessel\n• 2016 2nd round draft pick\n• Tyler Biggs",
+            "Relinquished": "• Kasperi Kapanen\n• Scott Harrington\n• 2016 1st round draft pick\n• 2016 3rd round draft pick",
+            "Notes": "traded from Toronto"
+        },
+        {
+            "Date": "2019-06-29",
+            "Team": "Coyotes",
+            "Acquired": "• Phil Kessel\n• 2021 4th round draft pick",
+            "Relinquished": "• Alex Galchenyuk\n• Pierre-Olivier Joseph\n• conditional 2020 1st round draft pick",
+            "Notes": "traded from Pittsburgh"
+        }
+    ],
+    "mitch_marner": [
+        {
+            "Date": "2015-06-27",
+            "Team": "Maple Leafs",
+            "Acquired": "• Mitch Marner",
+            "Relinquished": "",
+            "Notes": "selected 4th overall in 2015 NHL draft"
+        }
+    ],
+    "nazem_kadri": [
+        {
+            "Date": "2009-06-26",
+            "Team": "Maple Leafs",
+            "Acquired": "• Nazem Kadri",
+            "Relinquished": "",
+            "Notes": "selected 7th overall in 2009 NHL draft"
+        },
+        {
+            "Date": "2019-07-01",
+            "Team": "Avalanche",
+            "Acquired": "• Nazem Kadri\n• Calle Rosen\n• 2020 3rd round draft pick",
+            "Relinquished": "• Tyson Barrie\n• Alexander Kerfoot\n• 2020 6th round draft pick",
+            "Notes": "traded from Toronto"
+        },
+        {
+            "Date": "2022-08-18",
+            "Team": "Flames",
+            "Acquired": "• Nazem Kadri",
+            "Relinquished": "",
+            "Notes": "signed as free agent"
+        }
+    ],
+    "tyler_seguin": [
+        {
+            "Date": "2010-06-25",
+            "Team": "Bruins",
+            "Acquired": "• Tyler Seguin",
+            "Relinquished": "",
+            "Notes": "selected 2nd overall in 2010 NHL draft (from Toronto via Phil Kessel trade)"
+        },
+        {
+            "Date": "2013-07-04",
+            "Team": "Stars",
+            "Acquired": "• Tyler Seguin\n• Rich Peverley\n• Ryan Button",
+            "Relinquished": "• Loui Eriksson\n• Reilly Smith\n• Matt Fraser\n• Joe Morrow",
+            "Notes": "traded from Boston"
+        }
+    ]
+}

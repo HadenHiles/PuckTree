@@ -1,0 +1,23 @@
+{
+    "name": "pucktree",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Automatically discover and visualize NHL trade trees",
+    "scripts": {
+        "dev": "pnpm --filter web dev",
+        "build": "pnpm --recursive --filter './packages/*' build && pnpm --filter web build",
+        "lint": "pnpm --recursive lint",
+        "test": "pnpm --recursive test",
+        "type-check": "pnpm --recursive type-check",
+        "clean": "pnpm --recursive exec rm -rf dist .next node_modules"
+    },
+    "engines": {
+        "node": ">=20.0.0",
+        "pnpm": ">=9.0.0"
+    },
+    "packageManager": "pnpm@9.0.0",
+    "devDependencies": {
+        "@types/node": "^20.14.10",
+        "typescript": "^5.5.3"
+    }
+}

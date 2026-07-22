@@ -1,0 +1,73 @@
+services:
+  # Python transaction provider service
+  provider:
+    build:
+      context: ./services/transaction-provider
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - TRANSACTION_PROVIDER=${TRANSACTION_PROVIDER:-fixture}
+      - UNFLARE_SERVICE_URL=${UNFLARE_SERVICE_URL:-}
+      - UNFLARE_TIMEOUT_MS=${UNFLARE_TIMEOUT_MS:-60000}
+    volumes:
+      - ./services/transaction-provider:/app
+      - ./data/fixtures:/fixtures:ro
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - db
+    networks:
+      - pucktree-network
+
+  # Next.js web application
+  web:
+    build:
+      context: .
+      dockerfile: ./apps/web/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PROVIDER_SERVICE_URL=http://provider:8000
+    volumes:
+      - ./apps/web:/app/apps/web
+      - ./packages:/app/packages
+      - /app/node_modules
+      - /app/apps/web/node_modules
+    command: pnpm --filter web dev
+    depends_on:
+      - provider
+    networks:
+      - pucktree-network
+
+  # PostgreSQL database (for hosted cache, not required for fixture mode)
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=pucktree
+      - POSTGRES_USER=pucktree
+      - POSTGRES_PASSWORD=pucktree_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - pucktree-network
+
+  # Optional: Unflare service for Cloudflare bypass
+  # Uncomment if using TRANSACTION_PROVIDER=pro_sports
+  # See: https://github.com/iamyegor/Unflare
+  #
+  # unflare:
+  #   image: unflare/unflare:latest
+  #   ports:
+  #     - "5002:5002"
+  #   networks:
+  #     - pucktree-network
+
+volumes:
+  postgres-data:
+
+networks:
+  pucktree-network:
+    driver: bridge
