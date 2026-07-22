@@ -251,10 +251,61 @@ export const useTreeStore = create<TreeState>()(
 
         state.document.updatedAt = new Date().toISOString();
 
-        // Regenerate React Flow nodes and edges
-        const { nodes, edges } = convertToFlow(state.document);
-        state.nodes = nodes;
-        state.edges = edges;
+        // Partial branch layout: only position new nodes
+        // Find the parent asset node to position relative to it
+        const parentAssetNode = state.nodes.find((n) => n.id === connection.assetId);
+        const parentX = parentAssetNode?.position.x ?? 400;
+        const parentY = parentAssetNode?.position.y ?? 200;
+
+        // Add new transaction node to the right of the parent asset
+        const newTransactionNode: Node = {
+          id: tradeId,
+          type: 'transaction',
+          position: { x: parentX + 300, y: parentY },
+          data: {
+            date: connection.transactionDate,
+            kind: connection.kind,
+            teams: connection.teams,
+            confidence: connection.confidence,
+          },
+        };
+        state.nodes.push(newTransactionNode);
+
+        // Add edge from parent asset to new transaction
+        state.edges.push({
+          id: `${connection.assetId}-${tradeId}`,
+          source: connection.assetId,
+          target: tradeId,
+          type: 'smoothstep',
+        });
+
+        // Add new asset nodes to the right of the transaction
+        connection.assets.forEach((asset, idx) => {
+          const assetId = asset.id || `asset-${idx}`;
+          
+          // Only add node if it doesn't already exist
+          const existingNode = state.nodes.find((n) => n.id === assetId);
+          if (!existingNode) {
+            const yOffset = (idx - (connection.assets.length - 1) / 2) * 140;
+            state.nodes.push({
+              id: assetId,
+              type: 'asset',
+              position: { x: parentX + 600, y: parentY + yOffset },
+              data: {
+                asset: asset,
+                kind: asset.kind || 'player',
+              },
+            });
+          }
+
+          // Add edge from transaction to asset
+          state.edges.push({
+            id: `${tradeId}-${assetId}`,
+            source: tradeId,
+            target: assetId,
+            type: 'smoothstep',
+          });
+        });
 
         // Remove this connection from available connections
         const connectionsForAsset = state.connectionsByAssetId[connection.assetId];
