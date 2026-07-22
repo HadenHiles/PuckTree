@@ -184,7 +184,7 @@ pucktree/
 - [x] Milestone 0: Provider spike and normalization contract
 - [ ] Milestone 1: Magic-path prototype (search, pick trade, generate tree)
 - [ ] Milestone 2: Branch discovery and expansion
-- [ ] Milestone 3: Correction-grade editor
+- [x] Milestone 3: Correction-grade editor
 - [ ] Milestone 4: Share and presentation exports
 - [ ] Milestone 5: Public-demo hardening
 

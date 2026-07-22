@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useTreeStore } from '@/lib/stores/tree-store';
+import type { PlayerSearchCandidate } from '@/lib/nhl/types';
 
 export function NodeInspector() {
   const {
@@ -130,6 +131,9 @@ function AssetInspector({
   const [nhlPlayerId, setNhlPlayerId] = React.useState(
     asset.data.playerRef?.nhlPlayerId || ''
   );
+  const [identityCandidates, setIdentityCandidates] = React.useState<PlayerSearchCandidate[]>([]);
+  const [isSearchingIdentities, setIsSearchingIdentities] = React.useState(false);
+  const [identitySearchError, setIdentitySearchError] = React.useState<string | null>(null);
 
   // Draft pick fields
   const [draftYear, setDraftYear] = React.useState(
@@ -166,6 +170,33 @@ function AssetInspector({
     }
 
     onSave(updates);
+  };
+
+  const handleIdentitySearch = async () => {
+    if (playerName.trim().length < 2) {
+      setIdentitySearchError('Enter at least two characters to search the NHL player directory.');
+      return;
+    }
+
+    setIsSearchingIdentities(true);
+    setIdentitySearchError(null);
+    try {
+      const response = await fetch(`/api/players/search?q=${encodeURIComponent(playerName)}&limit=5`);
+      if (!response.ok) throw new Error('Player search failed');
+      const data = await response.json() as { players?: PlayerSearchCandidate[] };
+      setIdentityCandidates(data.players ?? []);
+    } catch {
+      setIdentitySearchError('Player search is unavailable. You can still enter an NHL Player ID manually.');
+    } finally {
+      setIsSearchingIdentities(false);
+    }
+  };
+
+  const handleIdentitySelection = (candidate: PlayerSearchCandidate) => {
+    setPlayerName(candidate.fullName);
+    setPosition(candidate.position);
+    setNhlPlayerId(candidate.playerId);
+    setIdentityCandidates([]);
   };
 
   return (
@@ -245,6 +276,35 @@ function AssetInspector({
                 <p className="text-xs text-slate-500">
                   Saving confirms this player identity and protects it from provider updates.
                 </p>
+              </div>
+
+              <div className="rounded-md border border-slate-200 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Resolve player identity</p>
+                    <p className="text-xs text-slate-500">Choose the correct NHL directory result before saving.</p>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={handleIdentitySearch} disabled={isSearchingIdentities}>
+                    {isSearchingIdentities ? 'Searching…' : 'Find matches'}
+                  </Button>
+                </div>
+
+                {identitySearchError && <p className="mt-2 text-xs text-red-700">{identitySearchError}</p>}
+                {identityCandidates.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {identityCandidates.map((candidate) => (
+                      <button
+                        key={candidate.playerId}
+                        type="button"
+                        onClick={() => handleIdentitySelection(candidate)}
+                        className="w-full rounded border border-slate-200 px-3 py-2 text-left text-sm hover:border-slate-400 hover:bg-slate-50"
+                      >
+                        <span className="font-medium text-slate-900">{candidate.fullName}</span>
+                        <span className="ml-2 text-slate-500">{candidate.position}{candidate.teamAbbrev ? ` · ${candidate.teamAbbrev}` : ''}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}
