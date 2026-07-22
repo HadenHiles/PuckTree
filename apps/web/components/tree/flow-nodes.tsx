@@ -8,6 +8,7 @@ import { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Calendar, User, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getOrdinalSuffix, buildHeadshotUrl } from '@/lib/utils/ordinal';
 import type { NormalizedAssetCandidate, NormalizedTeamRef } from '@pucktree/domain';
 
 /**
@@ -64,9 +65,22 @@ export const AssetNode = memo(({ data, selected }: AssetNodeProps) => {
 
         {/* Player headshot */}
         <div className="relative h-32 bg-gradient-to-b from-slate-100 to-slate-50 rounded-t-lg overflow-hidden">
-          <div className="w-full h-full flex items-center justify-center">
-            <User className="h-12 w-12 text-slate-300" />
-          </div>
+          {asset.playerRef.nhlPlayerId ? (
+            <img
+              src={buildHeadshotUrl(asset.playerRef.nhlPlayerId)}
+              alt={asset.playerRef.playerName}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                // Fallback to icon if image fails to load
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-300"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>';
+              }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <User className="h-12 w-12 text-slate-300" />
+            </div>
+          )}
         </div>
 
         {/* Player info */}
@@ -120,7 +134,7 @@ export const AssetNode = memo(({ data, selected }: AssetNodeProps) => {
           </div>
           {asset.overall && (
             <div className="text-xs text-slate-500 mt-1">
-              {asset.overall}th overall
+              {getOrdinalSuffix(asset.overall)} overall
             </div>
           )}
         </div>

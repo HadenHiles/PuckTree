@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import { X, Plus, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getOrdinalSuffix } from '@/lib/utils/ordinal';
 import type { ConnectionSuggestion } from '@/lib/stores/tree-store';
 
 interface ConnectionTrayProps {
@@ -120,7 +121,7 @@ export function ConnectionTray({
                                 {asset.kind === 'player' && asset.playerRef ? (
                                   <span>🏒 {asset.playerRef.playerName}</span>
                                 ) : asset.kind === 'draft-pick' ? (
-                                  <span>📋 {asset.draftYear} Round {asset.round} {asset.overall && `(${asset.overall}th)`}</span>
+                                  <span>📋 {asset.draftYear} Round {asset.round} {asset.overall && `(${getOrdinalSuffix(asset.overall)})`}</span>
                                 ) : (
                                   <span>• {asset.displayLabel || 'Unknown asset'}</span>
                                 )}
