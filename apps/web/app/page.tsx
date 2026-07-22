@@ -11,6 +11,7 @@ import type { NormalizedTransactionCandidate } from '@pucktree/domain';
 export default function HomePage() {
   const router = useRouter();
   const loadTree = useTreeStore((state) => state.loadTree);
+  const createBlankTree = useTreeStore((state) => state.createBlankTree);
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerSearchCandidate | null>(null);
 
   const handleSelectPlayer = (player: PlayerSearchCandidate) => {
@@ -31,8 +32,8 @@ export default function HomePage() {
   };
 
   const handleManualEntry = () => {
-    // TODO: Open manual player/trade entry dialog
-    console.log('Manual entry');
+    const treeId = createBlankTree();
+    router.push(`/tree/${treeId}`);
   };
 
   // Show trade picker if player is selected

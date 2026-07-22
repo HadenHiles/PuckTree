@@ -27,6 +27,12 @@ export interface TreeDocument {
   rootTradeId: string;
   tradesById: Record<string, TradeEvent>;
   assetsById: Record<string, AssetNode>;
+  links?: TreeLink[];
+}
+
+export interface TreeLink {
+  source: string;
+  target: string;
 }
 
 export interface TradeEvent {
@@ -37,6 +43,7 @@ export interface TradeEvent {
   assetIds: string[];
   sourceRefs: SourceRef[];
   confidence: string;
+  userEditedFields?: string[];
 }
 
 export interface AssetNode {
@@ -44,6 +51,7 @@ export interface AssetNode {
   kind: 'player' | 'draft-pick' | 'custom';
   data: NormalizedAssetCandidate;
   receivingTeamId: string | null;
+  userEditedFields?: string[];
 }
 
 export interface SourceRef {
@@ -109,6 +117,7 @@ interface TreeState {
 
   // Actions
   loadTree: (trade: NormalizedTransactionCandidate) => void;
+  createBlankTree: () => string;
   loadDocument: (document: TreeDocument) => void;
   setConnectionsForAsset: (assetId: string, connections: ConnectionSuggestion[]) => void;
   setLoadingConnections: (loading: boolean) => void;
@@ -123,6 +132,7 @@ interface TreeState {
   updateTransaction: (transactionId: string, updates: Partial<TradeEvent>) => void;
   createManualAsset: (asset: Omit<AssetNode, 'id'>) => string;
   createManualTransaction: (transaction: Omit<TradeEvent, 'id' | 'assetIds'>) => string;
+  linkManualNodes: (sourceId: string, targetId: string) => void;
   undo: () => void;
   redo: () => void;
   canUndo: () => boolean;
@@ -206,6 +216,7 @@ export const useTreeStore = create<TreeState>()(
             [tradeId]: tradeEvent,
           },
           assetsById,
+          links: [],
         };
 
         // Convert to React Flow nodes and edges
@@ -218,6 +229,51 @@ export const useTreeStore = create<TreeState>()(
         state.history = [cloneDocument(state.document)];
         state.historyIndex = 0;
       });
+    },
+
+    createBlankTree() {
+      const now = new Date().toISOString();
+      const treeId = `tree-${Date.now()}`;
+      const rootTradeId = `txn-${Date.now()}`;
+
+      set((state) => {
+        state.document = {
+          id: treeId,
+          title: 'Untitled trade tree',
+          description: null,
+          createdAt: now,
+          updatedAt: now,
+          rootTradeId,
+          tradesById: {
+            [rootTradeId]: {
+              id: rootTradeId,
+              transactionDate: now.slice(0, 10),
+              kind: 'trade',
+              teams: [],
+              assetIds: [],
+              sourceRefs: [{
+                id: `manual-${Date.now()}`,
+                provider: 'manual',
+                sourceName: 'Manual Entry',
+                sourceUrl: null,
+                retrievedAt: now,
+              }],
+              confidence: 'manual',
+            },
+          },
+          assetsById: {},
+          links: [],
+        };
+
+        const { nodes, edges } = convertToFlow(state.document);
+        state.nodes = nodes;
+        state.edges = edges;
+        state.connectionsByAssetId = {};
+        state.history = [cloneDocument(state.document)];
+        state.historyIndex = 0;
+      });
+
+      return treeId;
     },
 
     loadDocument(document) {
@@ -297,6 +353,8 @@ export const useTreeStore = create<TreeState>()(
         };
 
         state.document.tradesById[tradeId] = newTrade;
+        state.document.links ??= [];
+        state.document.links.push({ source: connection.assetId, target: tradeId });
 
         // Add new assets
         connection.assets.forEach((asset, idx) => {
@@ -368,6 +426,7 @@ export const useTreeStore = create<TreeState>()(
             target: assetId,
             type: 'smoothstep',
           });
+          state.document!.links!.push({ source: tradeId, target: assetId });
         });
 
         // Remove this connection from available connections
@@ -424,6 +483,11 @@ export const useTreeStore = create<TreeState>()(
         const asset = state.document.assetsById[assetId];
         if (!asset) return;
 
+        // Preserve a field-level record of user corrections. Provider refreshes can
+        // use this to avoid replacing corrections with newly fetched data.
+        const editedFields = Object.keys(updates).filter((field) => field !== 'userEditedFields');
+        asset.userEditedFields = [...new Set([...(asset.userEditedFields ?? []), ...editedFields])];
+
         // Apply updates to the asset
         Object.assign(asset, updates);
         state.document.updatedAt = new Date().toISOString();
@@ -456,6 +520,9 @@ export const useTreeStore = create<TreeState>()(
 
         const transaction = state.document.tradesById[transactionId];
         if (!transaction) return;
+
+        const editedFields = Object.keys(updates).filter((field) => field !== 'userEditedFields');
+        transaction.userEditedFields = [...new Set([...(transaction.userEditedFields ?? []), ...editedFields])];
 
         // Apply updates to the transaction
         Object.assign(transaction, updates);
@@ -568,6 +635,38 @@ export const useTreeStore = create<TreeState>()(
       return transactionId;
     },
 
+    linkManualNodes(sourceId, targetId) {
+      let didLinkNodes = false;
+      set((state) => {
+        if (!state.document || sourceId === targetId) return;
+
+        const sourceIsAsset = Boolean(state.document.assetsById[sourceId]);
+        const targetIsAsset = Boolean(state.document.assetsById[targetId]);
+        const sourceIsTransaction = Boolean(state.document.tradesById[sourceId]);
+        const targetIsTransaction = Boolean(state.document.tradesById[targetId]);
+
+        // A correction branch always joins an asset and a transaction. This
+        // prevents disconnected asset-to-asset and transaction-to-transaction links.
+        if (!((sourceIsAsset && targetIsTransaction) || (sourceIsTransaction && targetIsAsset))) return;
+
+        const transactionId = sourceIsTransaction ? sourceId : targetId;
+        const assetId = sourceIsAsset ? sourceId : targetId;
+        const transaction = state.document.tradesById[transactionId];
+        if (!transaction) return;
+
+        state.document.links ??= [];
+        if (state.document.links.some((link) => link.source === sourceId && link.target === targetId)) return;
+
+        state.document.links.push({ source: sourceId, target: targetId });
+        if (!transaction.assetIds.includes(assetId)) transaction.assetIds.push(assetId);
+        state.document.updatedAt = new Date().toISOString();
+        state.edges.push({ id: `${sourceId}-${targetId}`, source: sourceId, target: targetId, type: 'smoothstep' });
+        didLinkNodes = true;
+      });
+
+      if (didLinkNodes) recordHistory();
+    },
+
     undo() {
       const state = get();
       if (state.historyIndex <= 0 || state.history.length === 0) return;
@@ -629,27 +728,27 @@ function convertToFlow(document: TreeDocument): { nodes: Node[]; edges: Edge[] }
     return { nodes, edges };
   }
 
-  // Create transaction node
-  nodes.push({
-    id: trade.id,
-    type: 'transaction',
-    position: { x: 400, y: 200 },
-    data: {
-      date: trade.transactionDate,
-      kind: trade.kind,
-      teams: trade.teams,
-      confidence: trade.confidence,
-    },
+  const trades = Object.values(document.tradesById);
+  trades.forEach((transaction, index) => {
+    nodes.push({
+      id: transaction.id,
+      type: 'transaction',
+      position: index === 0 ? { x: 400, y: 200 } : { x: 700 + ((index - 1) % 3) * 300, y: 200 + Math.floor((index - 1) / 3) * 220 },
+      data: {
+        date: transaction.transactionDate,
+        kind: transaction.kind,
+        teams: transaction.teams,
+        confidence: transaction.confidence,
+      },
+    });
   });
 
   // Create asset nodes
-  trade.assetIds.forEach((assetId, index) => {
-    const asset = document.assetsById[assetId];
-    if (!asset) return;
-
-    const isLeft = index % 2 === 0;
-    const xOffset = isLeft ? -250 : 250;
-    const yOffset = Math.floor(index / 2) * 120;
+  Object.values(document.assetsById).forEach((asset, index) => {
+    const assetId = asset.id;
+    const isRootAsset = trade.assetIds.includes(assetId);
+    const xOffset = isRootAsset ? (index % 2 === 0 ? -250 : 250) : 250 + (index % 3) * 250;
+    const yOffset = isRootAsset ? Math.floor(index / 2) * 120 : 500 + Math.floor(index / 3) * 160;
 
     nodes.push({
       id: assetId,
@@ -661,13 +760,16 @@ function convertToFlow(document: TreeDocument): { nodes: Node[]; edges: Edge[] }
       },
     });
 
-    // Create edge from asset to transaction
-    edges.push({
-      id: `${assetId}-${trade.id}`,
-      source: assetId,
-      target: trade.id,
-      type: 'default',
-    });
+  });
+
+  const links = [
+    ...trade.assetIds.map((assetId) => ({ source: assetId, target: trade.id })),
+    ...(document.links ?? []),
+  ];
+  links.forEach((link) => {
+    if (!edges.some((edge) => edge.source === link.source && edge.target === link.target)) {
+      edges.push({ id: `${link.source}-${link.target}`, source: link.source, target: link.target, type: 'smoothstep' });
+    }
   });
 
   return { nodes, edges };

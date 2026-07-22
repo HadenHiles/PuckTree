@@ -19,6 +19,7 @@ import {
   useEdgesState,
   type OnNodesChange,
   type OnEdgesChange,
+  type OnConnect,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { ArrowLeft, Download, Eye, Info, Plus, Undo2, Redo2, Upload } from 'lucide-react';
@@ -57,6 +58,7 @@ export default function TreeEditorPage() {
     setSelectedNode,
     createManualAsset,
     createManualTransaction,
+    linkManualNodes,
     loadDocument,
     undo,
     redo,
@@ -139,6 +141,10 @@ export default function TreeEditorPage() {
     },
     [onEdgesChange, setEdges, updateEdges]
   );
+
+  const handleConnect: OnConnect = useCallback((connection) => {
+    if (connection.source && connection.target) linkManualNodes(connection.source, connection.target);
+  }, [linkManualNodes]);
 
   // Handle connection indicator click
   const handleConnectionClick = useCallback(async (assetId: string) => {
@@ -389,6 +395,7 @@ export default function TreeEditorPage() {
             edges={edges}
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
+            onConnect={handleConnect}
             onNodeClick={(_, node) => setSelectedNode(node.id)}
             nodeTypes={nodeTypes}
             fitView

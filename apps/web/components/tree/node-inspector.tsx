@@ -127,6 +127,9 @@ function AssetInspector({
   const [position, setPosition] = React.useState(
     asset.data.playerRef?.position || ''
   );
+  const [nhlPlayerId, setNhlPlayerId] = React.useState(
+    asset.data.playerRef?.nhlPlayerId || ''
+  );
 
   // Draft pick fields
   const [draftYear, setDraftYear] = React.useState(
@@ -149,8 +152,12 @@ function AssetInspector({
       updates.data.playerRef = {
         ...asset.data.playerRef,
         playerName,
+        normalizedName: asset.data.playerRef?.normalizedName || playerName.toLowerCase(),
+        nhlPlayerId: nhlPlayerId || null,
         position,
+        confidence: 'manual',
       };
+      updates.data.confidence = 'manual';
     }
 
     if (kind === 'draft-pick') {
@@ -169,6 +176,15 @@ function AssetInspector({
         </div>
         <div className="text-sm text-slate-700">{asset.kind}</div>
       </div>
+
+      {asset.userEditedFields?.length > 0 && (
+        <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+          <span className="font-medium">Protected correction</span>
+          <p className="mt-1 text-amber-800">
+            Your edits to {asset.userEditedFields.join(', ')} will be retained when this tree is refreshed.
+          </p>
+        </div>
+      )}
 
       {isEditing ? (
         <>
@@ -216,6 +232,19 @@ function AssetInspector({
                   onChange={(e) => setPosition(e.target.value)}
                   placeholder="e.g., Right Wing"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="nhlPlayerId">NHL Player ID</Label>
+                <Input
+                  id="nhlPlayerId"
+                  value={nhlPlayerId}
+                  onChange={(e) => setNhlPlayerId(e.target.value)}
+                  placeholder="Confirm the player identity"
+                />
+                <p className="text-xs text-slate-500">
+                  Saving confirms this player identity and protects it from provider updates.
+                </p>
               </div>
             </>
           )}
