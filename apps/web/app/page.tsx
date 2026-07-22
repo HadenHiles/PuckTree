@@ -1,32 +1,116 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { PlayerSearch } from '@/components/player/player-search';
+import { TradePicker } from '@/components/player/trade-picker';
+import { useTreeStore } from '@/lib/stores/tree-store';
+import type { PlayerSearchCandidate } from '@/lib/nhl/types';
+import type { NormalizedTransactionCandidate } from '@pucktree/domain';
+
 export default function HomePage() {
+  const router = useRouter();
+  const loadTree = useTreeStore((state) => state.loadTree);
+  const [selectedPlayer, setSelectedPlayer] = useState<PlayerSearchCandidate | null>(null);
+
+  const handleSelectPlayer = (player: PlayerSearchCandidate) => {
+    setSelectedPlayer(player);
+  };
+
+  const handleSelectTrade = (trade: NormalizedTransactionCandidate) => {
+    // Load trade into store
+    loadTree(trade);
+    
+    // Navigate to tree editor
+    const treeId = trade.id || `tree-${Date.now()}`;
+    router.push(`/tree/${treeId}`);
+  };
+
+  const handleBack = () => {
+    setSelectedPlayer(null);
+  };
+
+  const handleManualEntry = () => {
+    // TODO: Open manual player/trade entry dialog
+    console.log('Manual entry');
+  };
+
+  // Show trade picker if player is selected
+  if (selectedPlayer) {
+    return (
+      <TradePicker
+        player={selectedPlayer}
+        onSelectTrade={handleSelectTrade}
+        onBack={handleBack}
+        onManualEntry={handleManualEntry}
+      />
+    );
+  }
+
+  // Show landing page with player search
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-2xl mx-auto text-center">
-        <h1 className="text-5xl font-bold text-gray-900 mb-4">
-          PuckTree
-        </h1>
-        <p className="text-xl text-gray-600 mb-8">
-          Follow every branch of a hockey trade.
-        </p>
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <p className="text-gray-700 mb-4">
-            <strong>Milestone 0: Provider Spike</strong>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="container mx-auto px-4 py-16">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-5xl font-bold text-slate-900 mb-4">
+            PuckTree
+          </h1>
+          <p className="text-xl text-slate-600 mb-8">
+            Follow every branch of a hockey trade
           </p>
-          <p className="text-gray-600 text-sm mb-4">
-            The transaction provider and normalization contract are currently being validated.
-            The full player search and trade tree interface will be implemented in Milestone 1.
+          <p className="text-sm text-slate-500">
+            Pick a player, choose a trade, and follow what happened next.
           </p>
-          <a
-            href="/diagnostics"
-            className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Provider Diagnostics
-          </a>
         </div>
-        <div className="text-sm text-gray-500">
-          <a href="https://github.com/yourusername/pucktree" className="hover:text-gray-700">
-            View on GitHub
-          </a>
+
+        {/* Player Search */}
+        <div className="max-w-2xl mx-auto mb-16">
+          <PlayerSearch
+            onSelectPlayer={handleSelectPlayer}
+            onManualEntry={handleManualEntry}
+            placeholder="Search any NHL player"
+          />
+        </div>
+
+        {/* Sample Trees Placeholder */}
+        <div className="max-w-6xl mx-auto mt-16">
+          <h2 className="text-2xl font-semibold text-slate-900 mb-6 text-center">
+            Sample Trees
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="aspect-video bg-white rounded-lg shadow-md border-2 border-dashed border-slate-200 flex items-center justify-center"
+              >
+                <span className="text-slate-400">Sample {i}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer Links */}
+        <div className="max-w-6xl mx-auto mt-16 text-center">
+          <div className="flex justify-center gap-6 text-sm text-slate-500">
+            <a href="/about" className="hover:text-slate-900">
+              About
+            </a>
+            <a href="/data-sources" className="hover:text-slate-900">
+              Data Sources
+            </a>
+            <a href="/diagnostics" className="hover:text-slate-900">
+              Diagnostics
+            </a>
+            <a
+              href="https://github.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-slate-900"
+            >
+              GitHub
+            </a>
+          </div>
         </div>
       </div>
     </div>
