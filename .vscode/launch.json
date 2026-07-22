@@ -8,9 +8,9 @@
       "command": "pnpm dev",
       "cwd": "${workspaceFolder}",
       "serverReadyAction": {
-        "pattern": "- Local:.+(https?://.+)",
+        "pattern": "- Local:.+(https?://[^\\s]+)",
         "uriFormat": "%s",
-        "action": "debugWithChrome"
+        "action": "openExternally"
       }
     },
     {
@@ -37,7 +37,8 @@
       "justMyCode": false,
       "env": {
         "PYTHONPATH": "${workspaceFolder}/services/transaction-provider"
-      }
+      },
+      "console": "integratedTerminal"
     },
     {
       "name": "Next.js: debug full stack",
@@ -46,9 +47,9 @@
       "command": "pnpm dev",
       "cwd": "${workspaceFolder}",
       "serverReadyAction": {
-        "pattern": "- Local:.+(https?://.+)",
+        "pattern": "- Local:.+(https?://[^\\s]+)",
         "uriFormat": "%s",
-        "action": "debugWithChrome"
+        "action": "openExternally"
       }
     }
   ],
