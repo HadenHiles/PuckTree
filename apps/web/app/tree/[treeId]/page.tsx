@@ -129,7 +129,40 @@ export default function TreeEditorPage() {
     });
     
     setNodes(nodesWithConnections);
-  }, [storeNodes, connectionsByAssetId, handleConnectionClick, setNodes]);    });
+  }, [storeNodes, connectionsByAssetId, handleConnectionClick, setNodes]);
+
+  // Auto-fetch connections for all player nodes when document loads
+  useEffect(() => {
+    if (!document) return;
+
+    const existingTradeIds = Object.keys(document.tradesById);
+    
+    // Get all player assets that don't have connections fetched yet
+    const playerAssets = Object.entries(document.assetsById).filter(
+      ([assetId, asset]) => 
+        asset.kind === 'player' && 
+        asset.data.playerRef &&
+        !connectionsByAssetId[assetId]
+    );
+
+    // Fetch connections for each player asset
+    const fetchAllConnections = async () => {
+      for (const [assetId, asset] of playerAssets) {
+        if (asset.kind === 'player' && asset.data.playerRef) {
+          const connections = await fetchConnectionsForAsset(
+            assetId,
+            asset.data.playerRef.playerName,
+            existingTradeIds
+          );
+          setConnectionsForAsset(assetId, connections);
+        }
+      }
+    };
+
+    if (playerAssets.length > 0) {
+      fetchAllConnections();
+    }
+  }, [document, connectionsByAssetId, setConnectionsForAsset]);    });
       }, 100);
     },
     [onEdgesChange, setEdges, updateEdges]
