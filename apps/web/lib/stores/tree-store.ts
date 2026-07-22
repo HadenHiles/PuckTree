@@ -108,6 +108,8 @@ interface TreeState {
   toggleSourceDrawer: () => void;
   updateNodes: (nodes: Node[]) => void;
   updateEdges: (edges: Edge[]) => void;
+  updateAsset: (assetId: string, updates: Partial<AssetNode>) => void;
+  updateTransaction: (transactionId: string, updates: Partial<TradeEvent>) => void;
 }
 
 export const useTreeStore = create<TreeState>()(
@@ -348,6 +350,66 @@ export const useTreeStore = create<TreeState>()(
     updateEdges(edges) {
       set((state) => {
         state.edges = edges;
+      });
+    },
+
+    updateAsset(assetId, updates) {
+      set((state) => {
+        if (!state.document) return;
+
+        const asset = state.document.assetsById[assetId];
+        if (!asset) return;
+
+        // Apply updates to the asset
+        Object.assign(asset, updates);
+        state.document.updatedAt = new Date().toISOString();
+
+        // Update the corresponding React Flow node
+        const nodeIndex = state.nodes.findIndex((n) => n.id === assetId);
+        if (nodeIndex !== -1 && state.nodes[nodeIndex]) {
+          const node = state.nodes[nodeIndex];
+          if (node && node.data) {
+            state.nodes[nodeIndex] = {
+              ...node,
+              data: {
+                ...node.data,
+                asset: asset.data,
+                kind: asset.kind,
+              },
+            };
+          }
+        }
+      });
+    },
+
+    updateTransaction(transactionId, updates) {
+      set((state) => {
+        if (!state.document) return;
+
+        const transaction = state.document.tradesById[transactionId];
+        if (!transaction) return;
+
+        // Apply updates to the transaction
+        Object.assign(transaction, updates);
+        state.document.updatedAt = new Date().toISOString();
+
+        // Update the corresponding React Flow node
+        const nodeIndex = state.nodes.findIndex((n) => n.id === transactionId);
+        if (nodeIndex !== -1 && state.nodes[nodeIndex]) {
+          const node = state.nodes[nodeIndex];
+          if (node && node.data) {
+            state.nodes[nodeIndex] = {
+              ...node,
+              data: {
+                ...node.data,
+                date: transaction.transactionDate,
+                kind: transaction.kind,
+                teams: transaction.teams,
+                confidence: transaction.confidence,
+              },
+            };
+          }
+        }
       });
     },
   }))

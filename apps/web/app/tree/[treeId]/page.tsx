@@ -25,6 +25,7 @@ import { ArrowLeft, Download, Eye, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { nodeTypes } from '@/components/tree/flow-nodes';
 import { ConnectionTray } from '@/components/tree/connection-tray';
+import { NodeInspector } from '@/components/tree/node-inspector';
 import { useTreeStore } from '@/lib/stores/tree-store';
 import { fetchConnectionsForAsset } from '@/lib/stores/fetchConnections';
 
@@ -47,6 +48,7 @@ export default function TreeEditorPage() {
     addBranch,
     dismissConnection,
     setSelectedAssetForConnections,
+    setSelectedNode,
   } = useTreeStore();
 
   const [nodes, setNodes, onNodesChange] = useNodesState(storeNodes);
@@ -224,6 +226,7 @@ export default function TreeEditorPage() {
             edges={edges}
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
+            onNodeClick={(_, node) => setSelectedNode(node.id)}
             nodeTypes={nodeTypes}
             fitView
             minZoom={0.1}
@@ -298,7 +301,20 @@ export default function TreeEditorPage() {
             </div>
           </div>
         )}
+
+        {/* Node inspector */}
+        <NodeInspector />
       </div>
+
+      {/* Connection tray */}
+      <ConnectionTray
+        assetId={selectedAssetForConnections}
+        connections={selectedAssetForConnections ? connectionsByAssetId[selectedAssetForConnections] || [] : []}
+        isLoading={isLoadingConnections}
+        onAdd={addBranch}
+        onDismiss={dismissConnection}
+        onClose={() => setSelectedAssetForConnections(null)}
+      />
     </div>
   );
 }
